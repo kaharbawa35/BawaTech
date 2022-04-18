@@ -1,2 +1,2 @@
 # Dendii-
-Data Analytics &amp; Data Science 
+Data Science 
