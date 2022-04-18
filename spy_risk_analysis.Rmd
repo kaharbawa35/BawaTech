@@ -1,0 +1,390 @@
+---
+title: "SPY Risk Modeling & Assessment"
+author: "KAHAROU BAWA BOUAKRI"
+date: "1/22/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+spy<-read_csv('Pivot and ADR analysis.csv')
+```
+
+# Risk Analysis of SPY stock
+
+
+## Exploratory Data Analysis (EDA)
+
+From the summary of our dataset, we can see that variable "date" is a character which needs to be converted to date format going forward. Also, it's important to highlight that the open, close, high, and low prices are very close to each other in term of min, max, median, and mean value. The average price of SPY is around $128, and the median price is around $93 from 1//29/1993 to 1/21/2022. Going forward we'll focus our study from 2008 to 2022.
+
+
+```{r echo=FALSE}
+tail(spy)
+summary(spy)
+str(spy)
+```
+
+
+## Data wrangling
+
+Let's subset our data and focus on the date starting from 2008 to 2022 and create a new column "Movement" showing the the price variation of spy. 
+
+TC = (Pivot - BC) + Pivot
+
+Pivot = (High + Low + Close)/3
+
+BC = (High + Low)/2
+
+```{r echo=FALSE}
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+
+spy$Date<- as.Date(spy$Date, format="%m/%d/%y")
+spy<-spy %>%subset(Date>"2007-12-31") %>% mutate(Movement=ifelse(Close>Open, "Up", "Down"), Pivot=(High + Low + Close)/3, BC = (High + Low)/2, TC = (Pivot - BC) + Pivot) 
+head(spy)
+tail(spy)
+
+
+```
+
+```{r include=FALSE}
+df<-read_csv('Nspy.csv')
+tail(df)
+i=1:1462
+
+ Nspy<-merge(spy[,c(1,3,4,7)], cpr, by="Date")
+tail(Nspy)
+ write_csv(Nspy, "Nspy.csv")
+ subset(Market, Sentiment=="Moderately Bearish")
+ View(Market)
+ Sent<-df %>% subset(TC>BC & TC<Low|BC>TC &BC<Low) # Bullish
+ tail(Sent)#  Bullish=732
+Sentiment<-rep("Bullish", 732)
+ bull<-cbind(Sent, Sentiment)
+ 
+ Bear<-df %>% subset(TC>BC &BC>High|BC>TC&TC>High)# Bearish
+ tail(Bear)# 401
+ Sentiment<-rep("Bearish", 401)
+ Bear<-cbind(Bear, Sentiment)
+ 
+ unch<-df %>% subset(TC==High&BC==Low|BC==High&TC==Low)#0
+ mod_bull<-df %>% subset(TC>BC&TC>Low&TC<High&BC<Low|TC<BC&TC<Low&BC<High&BC>Low)# Moderately Bullish= 377
+ Sentiment<-rep("Moderately Bullish", 377)
+ mod_bull<-cbind(mod_bull, Sentiment)
+ 
+ mod_bear<-df %>% subset(TC>BC&BC<High&BC>Low&TC>High|BC>TC&TC<High&TC>Low&BC>High)
+ # Moderately Bearish #284
+ Sentiment<-rep("Moderately Bearish", 284)
+ mod_bear<-cbind(mod_bear, Sentiment)
+ 
+ Sidew<-df %>% subset(TC>BC&TC<High&High>BC&BC>Low|BC>TC&BC<High&High>TC&TC>Low) # Sideways 1715
+ Sentiment<-rep("Sideways", 1715)
+ Sidew<-cbind(Sidew, Sentiment)
+ 
+ breakout<-df %>% subset(TC>BC&TC>High&Low<TC&BC<Low|BC>TC&BC>High&Low<BC&TC<Low)# 0
+ spy_data<-rbind(Sidew, mod_bear, mod_bull, Bear, bull)
+ write_csv(spy_data, "spy_data.csv")
+ 
+
+uncat<-df[!(do.call(paste,df) %in% do.call(paste,spy_data[,-12])),]
+Sentiment<-rep("Uncategorized", 31)
+uncat<-cbind(uncat, Sentiment)
+Final_spy<-rbind(spy_data, uncat)
+dim(Final_spy)
+write_csv(Final_spy, "Final_spy.csv")
+
+pivot_ret<-Final_spy%>% subset(Sentiment=="Bullish"&Pivot_ret>mean(Pivot_ret, na.rm=T))
+write_csv(pivot_ret, "pivot_xdmean.csv")
+BC_ret<-Final_spy%>% subset(BC_ret>mean(BC_ret, na.rm=T))
+write_csv(BC_ret, "BC_xdmean.csv")
+TC_ret<-Final_spy%>% subset(TC_ret>mean(TC_ret, na.rm=T))
+write_csv(TC_ret, "TC_xdmean.csv")
+```
+## Price variation plot
+
+From the graphs below we can see that we have an overlap in the various ranges. The SPY stock tanked in the second half of 2008 till the second half of 2009 after which the prices have started jumping up. This could be explained by the financial crisis of 2007-2009 with a recovery process that seems to have taken place in the mid 2009. Stock prices have been increasing since then until early 2020 when the market tanked, and the stock prices fell considerably. This could be explained by the covid-19 crisis that led to the shutdown of the economy not just in the US but around the globe. Clearly, we can see from the graph below that the losses incurred due to the 2020 financial crisis are way higher than that of 2008.
+
+```{r echo=FALSE}
+library(reshape2)
+spy_long<-spy %>% select_('Date','Open','Close', 'Pivot', 'BC','TC') %>% melt(id.vars="Date", variable.names="Series")
+head(spy_long)
+ggplot(spy_long, aes(x=Date, y=value))+geom_line()+facet_wrap(variable~.)+theme_bw()
+
+ggplot(spy_long, aes(x=Date, y=value))+geom_line(aes(colour=variable))+theme_bw()
+```
+
+
+## Candlestick plot
+ 
+From the candlestick plot we can see that we have more Downward trend (yellow color) than Ups (blue color). 
+
+```{r echo=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+spy_mvm<-spy[,-c(6,8:10)] %>% pivot_longer(names_to ="Ticker", values_to= "Value", -c(Date,Movement))
+
+## Candlestick
+
+charting_data <- spy_mvm%>% subset( Date > "2021-12-31")
+
+candlestick <- ggplot(charting_data) +
+  geom_boxplot(aes(x = as.character(Date), y = Value, fill = Movement), color = "#D0D3D4", width = 0.2) +
+  scale_fill_manual(values = c(Up = "#0066ff", Down = "#ffff00")) +
+  xlab("Date") + 
+  ylab("Stock Price") +
+  labs(
+    title = "SPDR S&P 500 ETF Trust (SPY)",
+    subtitle = "Track of S&P 500 stock market index ",
+    caption = "Source: Yahoo! Finance"
+  ) +
+  scale_y_continuous(labels = scales::dollar) +
+  theme(
+    plot.background = element_rect(fill = "#17202A"),
+    panel.background = element_rect(fill = "#17202A"),
+    axis.text.x = element_text(color = "#ffffff", angle = 45, hjust = 1, vjust = 1),
+    axis.text.y = element_text(color = "#ffffff"),
+    axis.title.y = element_text(color = "#ffffff"),
+    axis.title.x = element_text(color = "#ffffff"),
+    plot.title = element_text(color = "#ffffff"),
+    plot.subtitle = element_text(color = "#ffffff"),
+    plot.caption = element_text(color = "#ffffff", face = "italic", size = 6),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(color = "#273746"),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    legend.position = "none",
+  )
+candlestick
+
+```
+
+# Central Pivot Analysis (CPR)
+
+Central Pivot Range is a versatile technical indicator usually comprising of 3 levels: a central pivot point (pivot), top central level (TC), and bottom central level (BC). From the graph below we can see that the gap/width between BC & TC it's been getting wider lately. Larger widths were observed from 2019 to 2022. The peak was observed in early 2020 which can be explained by the shutdown of the economy and so the market rules and financial laws couldn't be in force.
+
+```{r echo=FALSE}
+cpr<-spy %>% select_("Date","Pivot", "BC", "TC") %>% mutate(Range=abs(TC-BC))
+tail(cpr)
+ggplot(cpr, aes(x=Date, y=Range))+geom_line()+labs(title = "Gap Between TC and BC")+ theme_bw()
+#cpr %>% filter(Range<=0.25)
+
+```
+
+
+# Return series analysis and forecasting
+
+In this part, i will be analyzing and forecasting the future Pivot Point, Bottom Central (BC) and Top Central (TC). This will help in predicting whether the stock prices of SPY will be trending or sideways for the next trading day, week, month, and year.
+
+Obviously, we can see from the output below that we have very high correlation between the central pivot ranges (BC, TC, Pivot) but weak correlation between the CPR and the Range. So, we could use either of the CPR to predict Range value. 
+
+While predicting the return series using ARIMA model, we found that there will be a decrease by 16.5% in the pivot point value of SPY price on Monday January 24, 2022, followed by an increase of 21% and then 7% respectively on Tuesday and Wednesday. There will be a decrease by 22.2% in the BC value of SPY price on Monday January 24, 2022, followed by an increase of 15.8% and then 8% respectively on Tuesday and Wednesday. Lastly, there will be an increase by 2.8% in the TC value of SPY price on Monday January 24, 2022, followed by an increase of 4.8% and then 3.1% respectively on Tuesday and Wednesday. Also, we found that it is riskier to use TC as metric than Pivot point which is riskier than the BC. This result is so obvious as the CPR ranges from bottom up.
+
+
+```{r echo=FALSE}
+library(timeSeries)
+library(FRAPO)
+library(fGarch)
+cor(cpr[-1])
+date<-cpr$Date
+
+# Return series
+cpr$Pivot_ret<-returnseries(cpr$Pivot)
+cpr$BC_ret<-returnseries(cpr$BC)
+cpr$TC_ret<-returnseries(cpr$TC)
+cpr_ts<-timeSeries(cpr[-c(1,5)], charvec = date)
+# ACF AND PACF plot
+par(mfrow=c(3,2))
+acf(cpr$Pivot_ret, na.action = na.pass) # MA(1)=moving average
+pacf(cpr$Pivot_ret, na.action = na.pass)
+acf(cpr$BC_ret, na.action = na.pass) # MA(1)=moving average
+pacf(cpr$BC_ret, na.action = na.pass)
+acf(cpr$TC_ret, na.action = na.pass) # MA(1)=moving average
+pacf(cpr$TC_ret, na.action = na.pass)
+
+```
+
+## Forecasting using  ARIMA models
+
+```{r include=FALSE}
+library(forecast)
+arima_pivot<-auto.arima(cpr$Pivot_ret)
+# we have an ARIMA(4,0,4) with non zero mean
+arima_BC<-auto.arima(cpr$BC_ret)
+# ARIMA(2,0,0) with non-zero mean 
+arima_TC<-auto.arima(cpr$TC_ret)
+# we have ARIMA(1,0,1) with non-zero mean 
+
+predict(arima_pivot, n.ahead=3)$pred[1:3]
+# there will be a decrease by 16.5% in the pivot point value of SPY price on Monday January 24, 2022 followed by an increase of 21% and then 7% respectively on Tuesday and Wednesday.
+predict(arima_BC, n.ahead=3)$pred[1:3]
+# there will be a decrease by 22.2% in the BC value of SPY price on Monday January 24, 2022 followed by an increase of 15.8% and then 8% respectively on Tuesday and Wednesday.
+predict(arima_TC, n.ahead=3)$pred[1:3]
+# there will be an increase by 2.8% in the TC value of SPY price on Monday January 24, 2022 followed by an increase of 4.8% and then 3.1% respectively on Tuesday and Wednesday.
+
+#Risk involved on choosing either of the ranges as trading metric
+g_pivot<-garchFit(~arma(2,2)+garch(1,1), data = na.omit(cpr$Pivot_ret),include.mean = T)
+coef(g_pivot)
+
+g_BC<-garchFit(~arma(2,0)+garch(1,1),data = na.omit(cpr$BC_ret),include.mean = T)
+g_TC<-garchFit(~arma(1,1)+garch(1,1),data = na.omit(cpr$TC_ret),include.mean = T)
+
+# Risk prediction
+predict(g_BC)[3]
+# risk BC as metric 1.13
+predict(g_pivot)[3]
+# risk pivot=1.17
+predict(g_TC)[3]
+# risk TC=1.20
+```
+
+
+```{r echo=FALSE}
+ef<-density(cpr_ts$TC_ret, na.rm=TRUE)
+plot(ef, main="TC density" )
+
+```
+
+# Suitable distribution of Return
+
+From the density plot of SPY below we see that neither the normal distribution (NORM) nor the hyperbolic (HYP) or the generalized hyperbolic distribution (GHD) fit our empirical distribution. However, the normal inverse gaussian (NIG) seems to suit well the return series of SPY. The quantile plot below will help us confirm our findings.
+
+```{r echo=FALSE}
+library(GeneralizedHyperbolic)
+library(ghyp)
+library(fBasics)
+options(scipen=10)
+ghdfit<- fit.ghypuv(cpr_ts$TC_ret, symmetric = TRUE, control = list(maxit = 1000), na.rm = TRUE, silent = TRUE)
+hypfit<- fit.hypuv(cpr_ts$TC_ret, symmetric = TRUE, control = list(maxit = 1000), na.rm = TRUE, silent = TRUE)
+nigfit<- fit.NIGuv(cpr_ts$TC_ret, symmetric = TRUE, control = list(maxit = 1000), na.rm = TRUE, silent = TRUE)
+
+## Densities
+ghddens <- dghyp(ef$x, ghdfit)
+hypdens <- dghyp(ef$x, hypfit)
+nigdens <- dghyp(ef$x, nigfit)
+nordens <- dnorm(ef$x, mean = mean(cpr_ts$TC_ret, na.rm=TRUE), sd = sd(cpr_ts$TC_ret))
+col.def <- c("black", "red", "blue", "green", "orange")
+plot(ef, xlab = "", ylab = expression(f(x)), ylim = c(0, 0.25), main= "Density Plot of Return Distributions")
+lines(ef$x, ghddens, col = "red")
+lines(ef$x, hypdens, col = "blue")
+lines(ef$x, nigdens, col = "green")
+lines(ef$x, nordens, col = "orange")
+
+legend("topleft",
+       legend = c("empirical", "GHD", "HYP", "NIG", "NORM"),
+       col = col.def, lty = 1)
+
+
+```
+
+# Quantile plot
+
+From the quantile plot below we can see that only the generalized hyperbolic distribution (red dotted line) and the normal inverse gaussian (green) follow the straight red line. 
+In conclusion the **normal inverse gaussian ** might the best suited distribution to be used in risks modeling, assessing, and predicting of **SPY's Top Central level** 
+
+```{r echo=FALSE}
+qqghyp(ghdfit, line = TRUE, ghyp.col = "red", plot.legend = FALSE,
+       gaussian = FALSE, main = "", cex = 0.8)
+qqghyp(hypfit, add = TRUE, ghyp.pch = 2, ghyp.col = "blue",
+       gaussian = FALSE, line = FALSE, cex = 0.8)
+qqghyp(nigfit, add = TRUE, ghyp.pch = 3, ghyp.col = "green",
+       gaussian = FALSE, line = FALSE, cex = 0.8)
+legend("topleft", legend = c("GHD", "HYP", "NIG"),
+       col = col.def[-c(1,5)], pch = 1:3)
+```
+
+
+## Diagnostics to check which model works best
+
+# AIC test
+
+Clearly, we can now see that NIG has the lowest AIC value and therefore would the best suited model for predicting SPY's return series.
+
+```{r include=FALSE}
+AIC <- stepAIC.ghyp(cpr_ts$TC_ret, control = list(maxit = 1000), silent=TRUE)
+AIC$fit.table
+# The smaller the AIC value the better is the model
+# The smaller the LLM value the better is the model
+
+## Clearly we can now see that NIG is the best suited model for predicting TC return series
+```
+
+
+# Risk assessment of SPY with Top Central(TC) return series
+
+ The behavior of the VaR and ES risk measures according to each of the models is investigated. The two risks measures are derived from the fitted GHD, HYP, and NIG distributions for the Top Central (TC) returns from the previous subsection. These measures are calculated over a span from the 95.0% to 99.0% levels. 
+The resulting trajectories of the VaR and ES are then 
+compared to their empirical counterparts. 
+
+## Probabilities and Value at Risk (VaR)
+
+```{r echo=FALSE}
+p <- seq(0.001, 0.05,0.001)
+## VaR
+ghd.VaR <- abs(qghyp(p, ghdfit))
+hyp.VaR <- abs(qghyp(p, hypfit))
+nig.VaR <- abs(qghyp(p, nigfit))
+nor.VaR <- abs(qnorm(p, mean = mean(cpr_ts$Pivot_ret, na.rm=TRUE), sd = sd(cpr_ts$Pivot_ret, na.rm = TRUE))) 
+emp.VaR <- abs(quantile(x = cpr_ts$Pivot_ret, probs = p, na.rm=TRUE)) 
+#empirical counterparts are determined by the quantile() function
+
+
+# Plot of VaR
+plot(emp.VaR, type = "l", xlab = "Probabilities", ylab = "VaR", axes = FALSE,
+     ylim = range(c(hyp.VaR, nig.VaR, ghd.VaR, nor.VaR, emp.VaR)))
+box()
+axis(1, at = seq(along = p), labels = names(emp.VaR), tick = FALSE)
+axis(2, at = pretty(range(emp.VaR, ghd.VaR, hyp.VaR,
+                          nig.VaR, nor.VaR)))
+lines(seq(along = p), ghd.VaR, col = "red")
+lines(seq(along = p), hyp.VaR, col = "blue")
+lines(seq(along = p), nig.VaR, col = "green")
+lines(seq(along = p), nor.VaR, col = "orange")
+legend("topright",
+       legend = c("Empirical", "GHD", "HYP", "NIG", "Normal"),
+       col = col.def, lty = 1)
+```
+
+## Probabilities and Expected Shortfall (ES)
+
+```{r echo=FALSE}
+ghd.ES <- abs(ESghyp(p, ghdfit))
+hyp.ES <- abs(ESghyp(p, hypfit))
+nig.ES <- abs(ESghyp(p, nigfit))
+nor.ES <- abs(mean(cpr_ts$Pivot_ret, na.rm=TRUE) - sd(cpr_ts$Pivot_ret, na.rm = TRUE) *
+                dnorm(qnorm(1 - p)) / p)
+obs.p <- ceiling(p * length(cpr_ts$Pivot_ret[-1]))
+emp.ES <- sapply(obs.p, function(x) abs(mean(sort(cpr_ts$Pivot_ret[-1])[1:x])))
+## Plot of ES
+plot(emp.ES, type = "l", xlab = "Probabilities", ylab = "ES", axes = FALSE,
+     ylim = range(c(hyp.ES, nig.ES, ghd.ES, nor.ES, emp.ES), na.rm = TRUE))
+box()
+axis(1, at = 1:length(p), labels = names(emp.VaR), tick = FALSE)
+axis(2, at = pretty(range(emp.ES, ghd.ES, hyp.ES, nig.ES, nor.ES)))
+lines(1:length(p), ghd.ES, col = "red")
+lines(1:length(p), hyp.ES, col = "blue")
+lines(1:length(p), nig.ES, col = "green")
+lines(1:length(p), nor.ES, col = "orange")
+legend("topright",
+       legend = c("Empirical", "GHD", "HYP", "NIG", "Normal"),
+       col = col.def, lty = 1)
+
+```
+
+From the graphs above and after simulating 100,000 variables, we found that VaR=0.8 with 95% confidence level. This means the amount that could be lost in the next trading day (January 24, 2022) would be 0.8% or more and if that happens, on average the lost would be 2.8% at 95% confidence level. 
+
+At 99% confidence level, VaR= 6.5 and ES= 7.9 which means that the amount that could be lost in the next trading day would be 6.5% or more and if that happens, the average lost would be 7.9% with 99% confidence level.
+
+
+```{r eval=FALSE, include=FALSE}
+library(tidyverse)
+library(dplyr)
+cpr_trend<- cpr %>% mutate(Trend=ifelse(Range<=0.25, "Trending", "Sideways"))
+write_csv(cpr_trend, "spy.csv")
+
+```
+
+
