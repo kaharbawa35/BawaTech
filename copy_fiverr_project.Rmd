@@ -1,0 +1,331 @@
+---
+title: "copy_fivverr_job"
+author: "KAHAROU BAWA BOUAKRI"
+date: "1/6/2022"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Data Extraction
+
+The data of study focused on all the S&P 500 comapanies was obtained from yahoo finance using  webscraping technique.
+
+```{r eval=FALSE, include=FALSE}
+library(rvest)
+library(tidyverse)
+library(dplyr)
+
+## import ticker
+setwd("~/S&P500_data")
+sp_url<-"https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+df=read_html(sp_url) %>% html_nodes("table") %>% html_table()
+sp500<-df[[1]] %>% select(Symbol, Security, `GICS Sector`, `GICS Sub-Industry`, `Headquarters Location`)
+names(sp500)<-c("Ticker", "Name", "Sector", "Industry", "HQ_Location")
+save(sp500, file = "sp500.NData")
+df[1]
+## import price data
+
+aapl<-read_csv("https://query1.finance.yahoo.com/v7/finance/download/AAPL?period1=1262563200&period2=1641254400&interval=1d&events=history&includeAdjustedClose=true")
+head(aapl)
+returns<-as.data.frame(matrix(NA,ncol = 8, nrow = 0))
+names(returns)<-c('Date', 'Open','High', 'Low','Close', 'Adj_close', 'Volume', 'Ticker')
+for(symbol in sp500$Ticker){
+  print(symbol)
+  url<-paste0("https://query1.finance.yahoo.com/v7/finance/download/",symbol, "?period1=1262563200&period2=1641254400&interval=1d&events=history&includeAdjustedClose=true")
+  print(url)
+  ret<-try(read_csv(url))
+  if(mode(ret) !="character"){
+    ret$Ticker<-symbol
+    returns<-rbind(returns, ret)
+  }
+}
+view(returns)
+returns<- returns%>% select("Date", "Adj Close", "Ticker")
+head(returns)
+returns<-returns %>% mutate(
+  `Adj Close`<-as.numeric(`Adj Close`),
+)
+mode(returns$`Adj Close`)
+for(symbol in sp500$Ticker){
+  print(symbol)
+}
+
+```
+
+
+
+```{r eval=FALSE, include=FALSE}
+# DIFFERENT TOPIC CODE
+returns_set<- returns%>% select("Date", "Ticker", "Open", "High", "Low", "Close")
+returns_set<-returns_set %>% mutate(
+  Mouvement=ifelse(Close>Open, "Up", "Down")
+)
+save(returns_set, file = "S&P500.RData")
+
+returns_long<-returns_set %>% gather("Series", "Value", -Date, -Ticker, -Movement)
+returns_long<-returns_long %>% left_join(sp500 %>% select(Ticker, Name, Sector, Industry), by=c("Ticker"="Ticker"))
+save(returns_long, file = "sp500_detailed")
+
+```
+
+
+
+```{r include=FALSE}
+names(returns)<-c("Date", "`Adj Close`", "Ticker", "Adj_close")
+returns<-returns %>%select("Date", "`Adj Close`", "Ticker", "Adj_close") 
+head(returns)
+i=1:length(sp500$Ticker)
+sp<-function(i){
+  SP<-returns %>%filter(Ticker==sp500$Ticker[i]) %>% select("Date","Adj_close", "Ticker")
+  SP 
+} 
+head(sp(25)); sp500$Ticker[25]
+glimpse(sp(25))
+summary(sp(25))
+for(j in 1:length(sp500$Ticker)) top_range[j]<-diff(range(sp(j)$Adj_close))
+val_range<-sort(top_range, decreasing = T)
+#subset(sp500$Ticker, val_range== val_range[1:10])
+#top_range
+which(top_range==  max(top_range))
+diff(range(sp(1)$Adj_close))
+val_range[1:10]
+sp500$Ticker[350]
+max(top_range)
+
+sp_df<-returns[, -2] %>% pivot_wider(names_from = Ticker, values_from=Adj_close)
+head(sp_df)
+for(i in 2:length(colnames(sp_df)[-1])) { top_range[i]<-diff(range(sp_df[i],na.rm=T))
+
+}
+top_range<-round(top_range,2)
+val_range<-sort(top_range, decreasing = T)
+range_10<-val_range[1:10]
+#i=c(5384.05, 3622.80, 2796.96,2778.52, 2473.01, 1949.66, 1857.62, 1608.43, 1226.75,863.61)
+col_10<-function(range_10){
+  top_10<-subset(colnames(sp_df) , top_range==range_10)
+  top_10
+  
+}
+col_10(range_10[10])
+for(i in 1:10) name_10[i]<-col_10(range_10[i])
+
+```
+
+
+## Descriptive statistics
+
+I use the Adjusted daily prices of S&P 500 stocks. The top 10 companies with the higest range are below:
+
+```{r echo=FALSE}
+cbind(name_10, range_10)
+# The top 10 companies with the higest range are: 
+#range(sp_df$Date)
+```
+
+These ranges represent the difference between the minimum and maximum  price of these 10 stocks from January 4th, 2010 to January 3rd, 2022.
+
+the overall summary statistics of the top 10 S&P 500 stocks with the highest range can be seen below:
+
+```{r echo=FALSE}
+summary(sp_df[,c("NVR","AMZN", "GOOG","GOOGL" ,"BKNG" , "AZO" ,"CMG","MTD","TSLA","BLK" )])
+d10<-sp_df[,c("NVR","AMZN", "GOOG","GOOGL" ,"BKNG" , "AZO" ,"CMG","MTD","TSLA","BLK" )]
+price_plot_all <- ggplot(sp_df, aes(x= Date, y =c(NVR,AMZN))) +
+  geom_line() + theme_bw() + labs(title = "", x = "Date", y= "Adjusted Price", subtitle = "") 
+price_plot_all
+#sp_df %>% hist()
+#hist(sp_df$NVR)
+#head(returns)
+
+```
+
+The ggplot below shows an upward trend for all the 10 stocks from January 2010 to January 2022. 
+
+```{r echo=FALSE}
+prices_sep <- ggplot(subset(returns, Ticker==c("NVR","AMZN", "GOOG","GOOGL" ,"BKNG" , "AZO" ,"CMG","MTD","TSLA","BLK" )), aes(x = Date, y = Adj_close)) + geom_line() + facet_wrap(~Ticker, scales = "free_y") + theme_bw()
+prices_sep
+
+
+```
+
+
+```{r include=FALSE}
+library(FRAPO)
+library(fBasics)
+library(evir)
+library(tidyr)
+#sp_2010<-df[[1]] %>%filter(`Date first added`<='2010-01-04') %>% select(Symbol)
+
+#sp_df_2010<-subset(returns, Ticker %in%sp_2010$Symbol)
+
+sp_nomiss<-sp_df[,colSums(is.na(sp_df))<=10] #442
+head(sp_nomiss)
+
+
+```
+
+## S&P 500 Risk Modeling and Assessment 
+
+I focused on this part on the 442 S&P 500 stocks that have available data from 2010 to January 6th, 2022. Of the 442 stocks, the result of our findings (view output below) shows that the top 10 companies with highest return include: Netflix(NFLX), Dexcom( DXCM), Nvidia(NVDA), 	Abiomed(ABMD), 	Domino's Pizza(DPZ), 	United Rentals(URI), Align Technology(ALGN), Advanced Micro Devices(AMD). However, the top 10 less volatile stock are: Johnson & Johnson(JNJ), Procter & Gamble(PG), PepsiCo(PEP),Verizon Communications(VZ), Coca-Cola(KO),Colgate-Palmolive(CL), Kimberly-Clark(KMB),Duke Energy(DUK),Waste Management(WM), Consolidated Edison(ED). Clearly we can see that high return stock are not the less volatile, actually as the a law of finance state and I cote "more return are expected for taking more risk". But these 10 stocks are very stable as they have the lowest variance of all the 442 stocks involved in this study. These stocks ranges from consumer product to utilities and communication companies. Notice that the top 10 most volatile S&P 500 companies include: Advanced MicroDevices(AMD), American Airlines Group(AAL),Penn National Gaming(PENN), APA Corporation(APA), Freeport-McMoRan(FCX), Netflix(NFLX), United Airlines(UAL), Marathon Oil(MRO), Royal Caribbean Group(RCL), Micron Technology(MU).
+It's worth noticing that of all the *top 10 most volatile* stocks only Netflix made it to the top 10 highest return or should i say the highest retun of the top 10. Also, of all the *top 10 high return* stocks none but Netflix appears in the top 10 most volatile stocks. With that beeing said we could assume that one would be better off investing on all the top 10 with high return except Netflix(NFLX) since they appear to be less volatile and so can be relied upon for making up a high return portfolio. 
+
+
+Let's deepen our analysis with portfolio optimization model like correlation and Extreme values analysis. 
+
+
+```{r echo=FALSE}
+
+sp_nomiss<- removeNA(sp_nomiss)
+
+sp_ret<-returnseries(sp_nomiss[-1], method = 'discrete', trim = T)
+#tail(sp_ret)
+# Finding the TOP 10 S&P 500 most volatile Stock and the one with the highest rate of return. 
+top_return<-sort(apply(sp_ret, 2, mean), decreasing = T)[1:10]
+more_risk<-sort(apply(sp_ret, 2, var), decreasing = T)[1:10]
+less_risk<-sort(apply(sp_ret, 2, var), decreasing = F)[1:10]
+top_retun
+more_risk
+less_risk
+```
+
+# Correlation Analysis
+
+The top 10 high return stocks are all highly correlated. This means a shock in one might lead to a shock in the others. 
+
+```{r echo=FALSE}
+library(corrplot)
+library(rstatix)
+cor_sp<-sp_nomiss[-1] %>% select( NFLX, DXCM, NVDA, ABMD, DPZ, URI,ALGN, AMD,AVGO, FTNT) %>% cor_mat()
+cor_sp
+
+
+```
+
+
+## Extrem values analysis: The Block Maxima approach
+
+In this subsection the block maxima method is applied to the daily losses of S&P 500 stocks. We will use the Fit Generalized Extreme Value Distribution (GEV) function to determine the top 10 stocks the the lowest Value at Risk(VaR) and the Expected Shortfall(ES). The function's argument block has been set to 21. This will extract the Monthly  maxima of the series which represent the 21 trading days per Month.
+
+The findings of my analysis from the Block Maxima approach shows that the top 10 S&P 500 stocks with the lowest Value at risk(VaR) and expected shortfall are: Verizon Communications(VZ), 	PepsiCo(PEP), Xcel Energy(XEL), 	Duke Energy(DUK), 	Southern Company(SO), Public Service Enterprise Group(PEG), CMS Energy(CMS), Linde(LIN), Consolidated Edison(ED), American Electric Power(AEP). The value at risk for Verizon Communications(VZ) is 5.36 and the expected shortfall is 6.36. This means considering the monthly extreme values (extreme losses), if a loss is to occur in the next trading day (January 4th, 2022), verizon share holders would have lost at least 5.36%. If that happens the average expected lost would be 6.36%. Notice that Verizon Communications(VZ), PepsiCo(PEP), Duke Energy(DUK), Consolidated Edison(ED) are part of the top 10 less volatile stocks and they fall in the utilities and communication companies. 
+
+
+```{r echo=FALSE}
+library(evir)
+date<-sp_nomiss$Date[-1] 
+attr(sp_ret,'times')<-date
+sp_loss<- -1*sp_ret
+#head(sp_loss)
+#range(date)
+#class(sp_loss)
+i=1:441
+ gevSP<-function(i){
+   gevsp<-gev(as.numeric(unlist(sp_loss[i])),21)
+   gevsp
+ }
+ 
+library(magicfor)
+magic_for(print,silent = T)
+for(i in 1:441){
+  ex1<-cbind(gevSP(i)$par.ests, gevSP(i)$par.ses)
+  colnames(ex1)<-c("Parameter Est", "Standard Errors")
+  xi<-as.numeric(gevSP(i)$par.ests[1])
+  sigma<-as.numeric(gevSP(i)$par.ests[2])
+  mu<-as.numeric(gevSP(i)$par.ests[3])
+  gevsim<-rgev(100000,xi=xi,mu=mu,sigma=sigma)
+  VAR95<-sort(gevsim, decreasing = TRUE)[5000]
+  VAR99<-sort(gevsim, decreasing = TRUE)[1000]
+  ES95<-mean(sort(gevsim, decreasing = TRUE)[1:5000])
+  ES99<-mean(sort(gevsim, decreasing = TRUE)[1:1000])
+  print(VAR99, ES99)
+  
+  flush.console()
+}
+
+risk<-magic_result_as_dataframe()
+top_risk<-risk[order(risk$VAR99),]
+
+idx=as.vector(top_risk$i[1:10])
+#idx= c(411 316 436 143 366 332 104 249 112  26)
+colnames(sp_nomiss[-1])[idx]
+# stocks=c("VZ"  "PEP" "XEL" "DUK" "SO"  "PEG" "CMS" "LIN" "ED"  "AEP")
+VaR<-as.vector(top_risk$VAR99[1:10])
+VaR
+# VaR=c(5.356414 5.902702 6.162649 6.233003 6.429259 6.593819 6.709041 6.7159446.740098 6.742946)
+ES<-as.vector(top_risk$ES99[1:10])
+ES
+# ES=c(6.362602 7.792285 7.851019 8.423638 8.767397 8.052953 8.732111 8.396052 8.836639 8.838760)
+
+```
+
+From the Block maxima plot below of Verizon(VZ) the finding of a relatively stable(less volatile) stock throughout the sample period is mirrored in this graph exept for some few cases where we had some spikes. Hence, the assumption of identically distributed block maxima might be met. PepsiCo(PEP) appears to be more stable than Verizon exept for an isolated case that happens toward the end of the sample period (around 2020).
+
+```{r echo=FALSE}
+ # Plotting block maxima for Verizon 
+
+plot(gevSP(411)$data, type = "h", col = "blue", xlab = "",
+     ylab = "Block Maxima",
+     main = "Maximum Monthly Losses of Verizon")
+
+plot(gevSP(316)$data, type = "h", col = "blue", xlab = "",
+     ylab = "Block Maxima",
+     main = "Maximum Monthly Losses of PepsiCo")
+
+```
+
+All coefficients are significantly different from zero(view output below) except the shape parameter S(Mean=0.06, SE=0.62). The estimate of the shape parameter, S(not significantly different from zero), implies the existence of heavy tails and non-finite losses- that is, the GEV is of the Gumbel type. Clearly, we can see from  the plot below that the density plot is exponential. 
+Probability and quantile in Verizon and PepsiCo plot plots, data points in the far right tail are well captured by this model specification. This can be attributed to the relatively uniform/stable losses witnessed every Month in the sample period. This artifact shows up in the return level plot. For data points in the far right tail the estimated return levels systematically fall short compared to the empirical levels, though the latter stayed within the 95% confidence bands.
+In addition to these diagnostic plots, further inference from the model can be made using the profile log-likelihoods. The figures below show these for a 29-year and 128-year return level (upper panel) and for the shape parameter (lower panel) respectively for Verizon and PepsiCo. A daily loss as high as 6.62% would be observed once every 29 years for Verizon. However, a daily loss as high as 11.42% would be observed once every 138 years for PepsiCo. This point estimate shows how stable both companies are and how unlikely a huge or extreme loss would occur with Pepsico stocks.
+
+
+```{r echo=FALSE}
+library(ismev)
+VZGEV <- gev.fit(gevSP(411)$data)
+gev.diag(VZGEV)
+par(mfrow = c(2, 1))
+gev.prof(VZGEV, m = 20, xlow = 2, xup = 30, conf = 0.95)
+gev.profxi(VZGEV, xlow = -1, xup = 1, conf = 0.95)
+
+VZLoss <- max(VZGEV$data)
+# VZLoss= 6.620468
+VZYears <- 1 / (1 - pgev(VZLoss, mu = VZGEV$mle[1],
+                        sigma = VZGEV$mle[2],
+                        xi = VZGEV$mle[3])) / 12
+# VZYears= 29.198
+# This means that a lost as high as 6.62% of Verizon stock will occur once every 29 years or so.
+
+# Plotting block maxima for PepsiCo
+
+      
+
+PEPGEV <- gev.fit(gevSP(316)$data)
+gev.diag(PEPGEV )
+par(mfrow = c(2, 1))
+gev.prof(PEPGEV , m = 20, xlow = 2, xup = 30, conf = 0.95)
+gev.profxi(PEPGEV, xlow = -1, xup = 1, conf = 0.95)
+   
+PEPLoss <- max(PEPGEV$data)
+# PEPLoss=11.42832
+
+PEPYears <- 1 / (1 - pgev(PEPLoss, mu = PEPGEV$mle[1],
+                        sigma = PEPGEV$mle[2],
+                        xi = PEPGEV$mle[3])) / 12
+# PEPYears=138.5141
+# This means that a lost as high as 11.42% of Verizon stock will occur once every 138 years or so.
+
+```
+
+
+# Conclusion 
+
+This study focused on all the five hundred and five(505) S&P 500 companies. While there was no data available for two of the compnies, I first focused on the 503 companies with available data. I found that the top 10 most valued companies(high range price) include NVR, AMZN, GOOG, GOOGL, BKNG , AZO, CMG, MTD, TSLA, BLK. Overall these stocks shows no sign of slow down when it comes down to their prices.
+
+Some of the companies were founded and listed to the stock exchange just of recent and so do not have available data. Focusing our study on the 442 S&P 500 stocks that have available data from January 4th 2010 to January 6rd 2022. Of the 442 stocks, I found that the top 10 companies with the highest return include: Netflix(NFLX), Dexcom( DXCM), Nvidia(NVDA), 	Abiomed(ABMD), 	Domino's Pizza(DPZ), 	United Rentals(URI), Align Technology(ALGN), Advanced Micro Devices(AMD). It was also revealed from the correlation analysis that these comapnies are highly correlated. The *top 10 less volatile* stocks are: Johnson & Johnson(JNJ), Procter & Gamble(PG), PepsiCo(PEP),Verizon Communications(VZ), Coca-Cola(KO),Colgate-Palmolive(CL), Kimberly-Clark(KMB),Duke Energy(DUK),Waste Management(WM), Consolidated Edison(ED). None of the most valued companies made it to the highest return or less volatile list.
+
+While digging deep our study with extreme value analysis, the Block Maxima approach shows that the *top 10 S&P 500 stocks with the lowest Value at risk(VaR) and expected shortfall* are: Verizon Communications(VZ), 	PepsiCo(PEP), Xcel Energy(XEL), 	Duke Energy(DUK), 	Southern Company(SO), Public Service Enterprise Group(PEG), CMS Energy(CMS), Linde(LIN), Consolidated Edison(ED), American Electric Power(AEP).
+
+# Recommendation 
+
+For a long term investment, stable or less risky stock, I would recommend Verizon Communications(VZ), PepsiCo(PEP), Duke Energy(DUK), Consolidated Edison(ED). These four companies fall in the utilities and communication cathegory. Therefore the top 10 most reliable and stable S&P 500 companies would be in the Electric utilities, communication and comsumer staples(soft drink) and should include Verizon Communications(VZ), 	PepsiCo(PEP), Xcel Energy(XEL), 	Duke Energy(DUK), 	Southern Company(SO), Public Service Enterprise Group(PEG), CMS Energy(CMS), Linde(LIN), Consolidated Edison(ED), American Electric Power(AEP). This study shows how stable these companies and sector/industry are and how unlikely a huge or extreme loss would occur. It important to avoid holding a portfolio made of all of many of the high return stocks since they are all highly correlated.
