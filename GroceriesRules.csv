@@ -1,4 +1,4 @@
-"rules","support","confidence","coverage","lift","count"
+"rules","support","confidence","coverage","lift","count" 
 "{potted plants} => {whole milk}",0.00691408235892222,0.4,0.0172852058973055,1.56545961002786,68
 "{pasta} => {whole milk}",0.00610066090493137,0.405405405405405,0.0150482968988307,1.58661446962283,60
 "{herbs} => {root vegetables}",0.00701576004067107,0.43125,0.016268429079817,3.95647737873134,69
